@@ -20,7 +20,7 @@ jobs:
           ndk-version: r27c
           add-to-path: true
 
-      - name: Patch Makefile and Build Iris ARM64
+      - name: Patch Code and Build Iris ARM64
         run: |
           # 1. Find the Makefile
           MAKEFILE_PATH=$(find . -iname "makefile" | head -n 1)
@@ -34,21 +34,23 @@ jobs:
           MAKE_DIR=$(dirname "$MAKEFILE_PATH")
 
           # 2. Patch Makefile for Cross-Compilation & Clang Compatibility
-          # Replace x86 optimization with ARM64 AND inject flags to silence strict Clang warnings
           sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces/g' "$MAKEFILE_PATH"
-          
-          # Remove -Werror entirely so harmless warnings don't crash the compile
           sed -i 's/-Werror//g' "$MAKEFILE_PATH"
 
-          # 3. Set up the Android NDK Clang compiler path for ARM64 (API 24)
-          TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
-          export CXX="$TOOLCHAIN/bin/aarch64-linux-android24-clang++"
+          # 3. Patch perft.h to fix the 64-bit integer type mismatch on ARM64
+          # We cast both arguments inside std::max to 'long long' (1LL) so the compiler stops panicking
+          find . -name "perft.h" -exec sed -i 's/std::max(time, i64(1))/std::max((long long)time, 1LL)/g' {} +
 
-          # 4. Build Iris by explicitly passing the NDK compiler to the make command
+          # 4. Set up the Android NDK Clang compiler path for ARM64
+          # Bumped to API 28 because Android natively supports std::aligned_alloc starting at API 28
+          TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
+          export CXX="$TOOLCHAIN/bin/aarch64-linux-android28-clang++"
+
+          # 5. Build Iris by explicitly passing the NDK compiler
           cd "$MAKE_DIR"
           make CXX="$CXX"
 
-          # 5. Move binary to workspace root
+          # 6. Move binary to workspace root
           if [ -f "iris" ]; then
             mv iris "${{ github.workspace }}/iris"
           else
