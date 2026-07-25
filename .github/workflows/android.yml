@@ -34,7 +34,6 @@ jobs:
           MAKE_DIR=$(dirname "$MAKEFILE_PATH")
 
           # 2. Patch Makefile for Cross-Compilation & Clang Compatibility
-          # Silencing missing-braces and mismatched-tags warnings
           sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces -Wno-mismatched-tags/g' "$MAKEFILE_PATH"
           sed -i 's/-Werror//g' "$MAKEFILE_PATH"
 
@@ -49,9 +48,10 @@ jobs:
           cd "$MAKE_DIR"
           make CXX="$CXX"
 
-          # 6. Move binary to workspace root
+          # 6. Copy binary to a dedicated artifact folder to avoid 'same file' bash errors
           if [ -f "iris" ]; then
-            mv iris "${{ github.workspace }}/iris"
+            mkdir -p "${{ github.workspace }}/artifact"
+            cp iris "${{ github.workspace }}/artifact/iris"
           else
             echo "Binary 'iris' not found! Build failed."
             exit 1
@@ -59,10 +59,10 @@ jobs:
 
       - name: Verify Binary Architecture
         run: |
-          file iris
+          file "${{ github.workspace }}/artifact/iris"
 
       - name: Upload Compiled Binary
         uses: actions/upload-artifact@v4
         with:
           name: iris-android-arm64
-          path: iris
+          path: artifact/iris
