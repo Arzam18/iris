@@ -1,0 +1,44 @@
+name: Build Iris for Android
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v3
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: true
+
+      - name: Patch Makefile for Cross-Compilation
+        run: |
+          # Replace x86 native architecture flags with ARM64 flags
+          sed -i 's/-march=native/-march=armv8-a/g' Makefile
+
+      - name: Build Iris ARM64 Binary
+        run: |
+          # Set up the Android NDK Clang compiler path for ARM64 (API 24 ensures wide compatibility)
+          TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
+          export CXX="$TOOLCHAIN/bin/aarch64-linux-android24-clang++"
+
+          # Execute the build (downloads network via curl, compiles, and cleans up temp net file)
+          make
+
+          # Verify the binary architecture
+          file iris
+
+      - name: Upload Compiled Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: iris-android-arm64
+          path: iris
