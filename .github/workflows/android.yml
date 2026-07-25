@@ -33,8 +33,9 @@ jobs:
           echo "Found Makefile at: $MAKEFILE_PATH"
           MAKE_DIR=$(dirname "$MAKEFILE_PATH")
 
-          # 2. Patch Makefile for Cross-Compilation & Clang Compatibility
-          sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces -Wno-mismatched-tags/g' "$MAKEFILE_PATH"
+          # 2. Patch Makefile for Cross-Compilation, Clang Compatibility & Static Linking
+          # Added -static-libstdc++ to bundle the C++ library inside the binary
+          sed -i 's/-march=native/-march=armv8-a -static-libstdc++ -Wno-error -Wno-missing-braces -Wno-mismatched-tags/g' "$MAKEFILE_PATH"
           sed -i 's/-Werror//g' "$MAKEFILE_PATH"
 
           # 3. Patch perft.h to fix the 64-bit integer type mismatch on ARM64
@@ -48,7 +49,7 @@ jobs:
           cd "$MAKE_DIR"
           make CXX="$CXX"
 
-          # 6. Copy binary to a dedicated artifact folder to avoid 'same file' bash errors
+          # 6. Copy binary to a dedicated artifact folder
           if [ -f "iris" ]; then
             mkdir -p "${{ github.workspace }}/artifact"
             cp iris "${{ github.workspace }}/artifact/iris"
