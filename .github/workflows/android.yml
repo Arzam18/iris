@@ -34,15 +34,14 @@ jobs:
           MAKE_DIR=$(dirname "$MAKEFILE_PATH")
 
           # 2. Patch Makefile for Cross-Compilation & Clang Compatibility
-          sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces/g' "$MAKEFILE_PATH"
+          # Silencing missing-braces and mismatched-tags warnings
+          sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces -Wno-mismatched-tags/g' "$MAKEFILE_PATH"
           sed -i 's/-Werror//g' "$MAKEFILE_PATH"
 
           # 3. Patch perft.h to fix the 64-bit integer type mismatch on ARM64
-          # We cast both arguments inside std::max to 'long long' (1LL) so the compiler stops panicking
           find . -name "perft.h" -exec sed -i 's/std::max(time, i64(1))/std::max((long long)time, 1LL)/g' {} +
 
-          # 4. Set up the Android NDK Clang compiler path for ARM64
-          # Bumped to API 28 because Android natively supports std::aligned_alloc starting at API 28
+          # 4. Set up the Android NDK Clang compiler path for ARM64 (API 28)
           TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
           export CXX="$TOOLCHAIN/bin/aarch64-linux-android28-clang++"
 
