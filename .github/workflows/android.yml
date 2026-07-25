@@ -20,21 +20,42 @@ jobs:
           ndk-version: r27c
           add-to-path: true
 
-      - name: Patch Makefile for Cross-Compilation
+      - name: Patch Makefile and Build Iris ARM64
         run: |
-          # Replace x86 native architecture flags with ARM64 flags
-          sed -i 's/-march=native/-march=armv8-a/g' Makefile
+          # 1. Find any Makefile regardless of case or subdirectory
+          MAKEFILE_PATH=$(find . -iname "makefile" | head -n 1)
 
-      - name: Build Iris ARM64 Binary
-        run: |
-          # Set up the Android NDK Clang compiler path for ARM64 (API 24 ensures wide compatibility)
+          if [ -z "$MAKEFILE_PATH" ]; then
+            echo "Error: No Makefile found in repository!"
+            ls -la
+            exit 1
+          fi
+
+          echo "Found Makefile at: $MAKEFILE_PATH"
+          MAKE_DIR=$(dirname "$MAKEFILE_PATH")
+
+          # 2. Patch x86 native flags to ARM64 flags in the Makefile
+          sed -i 's/-march=native/-march=armv8-a/g' "$MAKEFILE_PATH"
+
+          # 3. Set up the Android NDK Clang compiler path for ARM64 (API 24)
           TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
           export CXX="$TOOLCHAIN/bin/aarch64-linux-android24-clang++"
 
-          # Execute the build (downloads network via curl, compiles, and cleans up temp net file)
+          # 4. Build Iris inside the Makefile directory
+          cd "$MAKE_DIR"
           make
 
-          # Verify the binary architecture
+          # 5. Move binary to the root directory for artifact uploading
+          if [ -f "iris" ]; then
+            mv iris "${{ github.workspace }}/iris"
+          else
+            echo "Binary 'iris' not found after make!"
+            ls -la
+            exit 1
+          fi
+
+      - name: Verify Binary Architecture
+        run: |
           file iris
 
       - name: Upload Compiled Binary
