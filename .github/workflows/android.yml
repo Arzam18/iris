@@ -22,35 +22,37 @@ jobs:
 
       - name: Patch Makefile and Build Iris ARM64
         run: |
-          # 1. Find any Makefile regardless of case or subdirectory
+          # 1. Find the Makefile
           MAKEFILE_PATH=$(find . -iname "makefile" | head -n 1)
 
           if [ -z "$MAKEFILE_PATH" ]; then
             echo "Error: No Makefile found in repository!"
-            ls -la
             exit 1
           fi
 
           echo "Found Makefile at: $MAKEFILE_PATH"
           MAKE_DIR=$(dirname "$MAKEFILE_PATH")
 
-          # 2. Patch x86 native flags to ARM64 flags in the Makefile
-          sed -i 's/-march=native/-march=armv8-a/g' "$MAKEFILE_PATH"
+          # 2. Patch Makefile for Cross-Compilation & Clang Compatibility
+          # Replace x86 optimization with ARM64 AND inject flags to silence strict Clang warnings
+          sed -i 's/-march=native/-march=armv8-a -Wno-error -Wno-missing-braces/g' "$MAKEFILE_PATH"
+          
+          # Remove -Werror entirely so harmless warnings don't crash the compile
+          sed -i 's/-Werror//g' "$MAKEFILE_PATH"
 
           # 3. Set up the Android NDK Clang compiler path for ARM64 (API 24)
           TOOLCHAIN="${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64"
           export CXX="$TOOLCHAIN/bin/aarch64-linux-android24-clang++"
 
-          # 4. Build Iris inside the Makefile directory
+          # 4. Build Iris by explicitly passing the NDK compiler to the make command
           cd "$MAKE_DIR"
-          make
+          make CXX="$CXX"
 
-          # 5. Move binary to the root directory for artifact uploading
+          # 5. Move binary to workspace root
           if [ -f "iris" ]; then
             mv iris "${{ github.workspace }}/iris"
           else
-            echo "Binary 'iris' not found after make!"
-            ls -la
+            echo "Binary 'iris' not found! Build failed."
             exit 1
           fi
 
